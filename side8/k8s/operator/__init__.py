@@ -187,9 +187,9 @@ def main():
     resource = args.resource
 
     def apply_fn(event_object):
-        print("running apply.sh")
+        print("running apply")
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
-        process = subprocess.Popen(["/bin/bash", "apply.sh"], env=dict(list(os.environ.items()) + list(subprocess_env.items())), stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+        process = subprocess.Popen(["/bin/bash", "apply"], env=dict(list(os.environ.items()) + list(subprocess_env.items())), stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
         out, err = process.communicate()
         print("out: {}".format(out))
         print("error:")
@@ -199,9 +199,9 @@ def main():
         return status
 
     def delete_fn(event_object):
-        print("running delete.sh")
+        print("running delete")
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
-        subprocess.check_call(["/bin/bash", "delete.sh"], env=dict(list(os.environ.items()) + list(subprocess_env.items())))
+        subprocess.check_call(["/bin/bash", "delete"], env=dict(list(os.environ.items()) + list(subprocess_env.items())))
 
     wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn)
     
