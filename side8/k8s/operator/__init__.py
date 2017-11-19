@@ -146,14 +146,14 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
             spec = event['object']['spec']
             subprocess_env = dict([("_DOLLAR", "$")] + parse(event['object'], prefix="K8S"))
             if deletion_timestamp is not None:
-                if "OldSchoolGC" in finalizers:
+                if "Side8OperatorDelete" in finalizers:
                     delete_fn(event['object'])
-                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "OldSchoolGC", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
+                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
                 else:
                     custom_objects_api_instance.delete_namespaced_custom_object(fqdn, version, namespace, resource, name, body=kubernetes.client.V1DeleteOptions())
             else:
-                if "OldSchoolGC" not in finalizers:
-                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"finalizers": ["OldSchoolGC"]}, "kind": kind, "apiVersion": api_version, "name": name})
+                if "Side8OperatorDelete" not in finalizers:
+                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"finalizers": ["Side8OperatorDelete"]}, "kind": kind, "apiVersion": api_version, "name": name})
                 else:
                     status = apply_fn(event['object'])
                     custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
