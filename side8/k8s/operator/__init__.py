@@ -166,8 +166,8 @@ def main():
     parser.add_argument('--fqdn', required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--resource', required=True)
-    parser.add_argument('--apply', default="apply")
-    parser.add_argument('--delete', default="delete")
+    parser.add_argument('--apply', default="./apply")
+    parser.add_argument('--delete', default="./delete")
 
     args = parser.parse_args()
 
