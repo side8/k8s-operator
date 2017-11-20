@@ -147,8 +147,11 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
             subprocess_env = dict([("_DOLLAR", "$")] + parse(event['object'], prefix="K8S"))
             if deletion_timestamp is not None:
                 if "Side8OperatorDelete" in finalizers:
-                    delete_fn(event['object'])
-                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
+                    status = delete_fn(event['object'])
+                    if status:
+                        custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+                    else:
+                        custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
                 else:
                     custom_objects_api_instance.delete_namespaced_custom_object(fqdn, version, namespace, resource, name, body=kubernetes.client.V1DeleteOptions())
             else:
@@ -204,7 +207,16 @@ def main():
     def delete_fn(event_object):
         print("running delete")
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
-        subprocess.check_call([args.delete], env=dict(list(os.environ.items()) + list(subprocess_env.items())))
+        process = subprocess.Popen([args.delete], env=dict(list(os.environ.items()) + list(subprocess_env.items())), stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+        out, err = process.communicate()
+
+        print("out: {}".format(out))
+        print("error:")
+        print(err.decode('utf-8'))
+
+        assert process.returncode == 0
+        status = yaml.load(out)
+        return status
 
     wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn)
     

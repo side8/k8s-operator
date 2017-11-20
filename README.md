@@ -65,7 +65,14 @@ This pattern allows very simple scripts to take deterministic single steps towar
 
 ## delete
 
-`delete` receives the configuration environment variables too. As this is a destructive step it is usually safe to blindly delete all associated resources but can also be used to do final backups.
+`delete` receives the configuration environment variables in the same way as apply.
+
+`delete` *must* only write either valid yaml _or_ nothing (techincally yaml null) to stdout.
+
+If it writes yaml this will be written to the `status` field of the custom resource without deleting the resource and delete will be called again.
+This is to allow convergant deletes without requiring complex logic in the delete command.
+
+If it writes nothing the object is permanantly deleted from Kubernetes.
 
 ## Examples
 
