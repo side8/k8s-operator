@@ -1,5 +1,4 @@
 import kubernetes
-from pprint import pprint
 import sys
 from six import iteritems
 import subprocess
@@ -52,7 +51,6 @@ class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
         # verify the required parameter 'body' is set
         if ('body' not in params) or (params['body'] is None):
             raise ValueError("Missing the required parameter `body` when calling `update_namespaced_custom_object`")
-
 
         collection_formats = {}
 
@@ -110,20 +108,20 @@ def parse(o, prefix=""):
     def flatten(lis):
         new_lis = []
         for item in lis:
-            if type(item) == type([]):
+            if isinstance(item, list):
                 new_lis.extend(flatten(item))
             else:
                 new_lis.append(item)
         return new_lis
-            
+
     try:
         return {
-            "str": lambda : (prefix, o),
-            "int": lambda : parse(str(o), prefix=prefix),
-            "bool": lambda : parse(1 if o else 0, prefix=prefix),
-            "NoneType": lambda : parse("", prefix=prefix),
-            "list": lambda : flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in enumerate(o)]),
-            "dict": lambda : flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in o.items()]),
+            "str": lambda: (prefix, o),
+            "int": lambda: parse(str(o), prefix=prefix),
+            "bool": lambda: parse(1 if o else 0, prefix=prefix),
+            "NoneType": lambda: parse("", prefix=prefix),
+            "list": lambda: flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in enumerate(o)]),
+            "dict": lambda: flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in o.items()]),
         }[type(o).__name__]()
     except KeyError:
         raise
@@ -138,7 +136,6 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                 name = event['object']['metadata']['name']
                 deletion_timestamp = event['object']['metadata']['deletionTimestamp']
                 kind = event['object']['kind']
-                uid = event['object']['metadata']['uid']
                 resource_version = event['object']['metadata']['resourceVersion']
                 try:
                     finalizers = event['object']['metadata']['finalizers']
@@ -147,23 +144,35 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                 api_version = event['object']['apiVersion']
                 event_type = event['type']
                 if event_type in ["ADDED", "MODIFIED"]:
-                    spec = event['object']['spec']
-                    subprocess_env = dict([("_DOLLAR", "$")] + parse(event['object'], prefix="K8S"))
                     if deletion_timestamp is not None:
                         if "Side8OperatorDelete" in finalizers:
                             status = delete_fn(event['object'])
                             if status:
-                                custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+                                custom_objects_api_instance.update_namespaced_custom_object(
+                                        fqdn, version, namespace, resource, name, {"status": status})
                             else:
-                                custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
+                                custom_objects_api_instance.update_namespaced_custom_object(
+                                        fqdn, version, namespace, resource, name,
+                                        {"metadata": {
+                                            "ResourceVerion": resource_version,
+                                            "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]},
+                                         "kind": kind, "apiVersion": api_version, "name": name})
                         else:
-                            custom_objects_api_instance.delete_namespaced_custom_object(fqdn, version, namespace, resource, name, body=kubernetes.client.V1DeleteOptions())
+                            custom_objects_api_instance.delete_namespaced_custom_object(
+                                    fqdn, version, namespace, resource,
+                                    name, body=kubernetes.client.V1DeleteOptions())
                     else:
                         if "Side8OperatorDelete" not in finalizers:
-                            custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"finalizers": ["Side8OperatorDelete"]}, "kind": kind, "apiVersion": api_version, "name": name})
+                            custom_objects_api_instance.update_namespaced_custom_object(
+                                    fqdn, version, namespace, resource,
+                                    name, {"metadata": {"finalizers": ["Side8OperatorDelete"]},
+                                           "kind": kind, "apiVersion": api_version, "name": name})
                         else:
                             status = apply_fn(event['object'])
-                            custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+                            custom_objects_api_instance.update_namespaced_custom_object(
+                                    fqdn, version, namespace,
+                                    resource, name, {"status": status})
+
 
 def main():
 
@@ -180,18 +189,17 @@ def main():
 
     try:
         kubernetes.config.load_incluster_config()
-        print( "configured in cluster with service account" )
-    except:
+        print("configured in cluster with service account")
+    except Exception:
         try:
             kubernetes.config.load_kube_config()
-            print( "configured via kubeconfig file" )
-        except:
-            print( "No Kubernetes configuration found" )
+            print("configured via kubeconfig file")
+        except Exception:
+            print("No Kubernetes configuration found")
             sys.exit(1)
-    
-    
+
     custom_objects_api_instance = CustomObjectsApiWithUpdate()
-    
+
     fqdn = args.fqdn
     version = args.version
     resource = args.resource
@@ -199,7 +207,12 @@ def main():
     def apply_fn(event_object):
         print("running apply")
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
-        process = subprocess.Popen([args.apply], env=dict(list(os.environ.items()) + list(subprocess_env.items())), stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+        process = subprocess.Popen(
+            [args.apply],
+            env=dict(list(os.environ.items()) + list(subprocess_env.items())),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=1)
         out, err = process.communicate()
         print("out: {}".format(out))
         print("error:")
@@ -211,7 +224,12 @@ def main():
     def delete_fn(event_object):
         print("running delete")
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
-        process = subprocess.Popen([args.delete], env=dict(list(os.environ.items()) + list(subprocess_env.items())), stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+        process = subprocess.Popen(
+                [args.delete],
+                env=dict(list(os.environ.items()) + list(subprocess_env.items())),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1)
         out, err = process.communicate()
 
         print("out: {}".format(out))
@@ -223,7 +241,6 @@ def main():
         return status
 
     wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn)
-    
 
 
 if __name__ == '__main__':
