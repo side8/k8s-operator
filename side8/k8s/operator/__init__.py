@@ -5,6 +5,8 @@ from six import iteritems
 import subprocess
 import os
 import yaml
+from contextlib import suppress
+import urllib3.exceptions
 
 
 class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
@@ -129,37 +131,39 @@ def parse(o, prefix=""):
 
 def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn):
     w = kubernetes.watch.Watch()
-    for event in w.stream(custom_objects_api_instance.list_cluster_custom_object, fqdn, version, resource, _request_timeout=60):
-        namespace = event['object']['metadata']['namespace']
-        name = event['object']['metadata']['name']
-        deletion_timestamp = event['object']['metadata']['deletionTimestamp']
-        kind = event['object']['kind']
-        uid = event['object']['metadata']['uid']
-        resource_version = event['object']['metadata']['resourceVersion']
-        try:
-            finalizers = event['object']['metadata']['finalizers']
-        except KeyError:
-            finalizers = []
-        api_version = event['object']['apiVersion']
-        event_type = event['type']
-        if event_type in ["ADDED", "MODIFIED"]:
-            spec = event['object']['spec']
-            subprocess_env = dict([("_DOLLAR", "$")] + parse(event['object'], prefix="K8S"))
-            if deletion_timestamp is not None:
-                if "Side8OperatorDelete" in finalizers:
-                    status = delete_fn(event['object'])
-                    if status:
-                        custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+    while True:
+        with suppress(urllib3.exceptions.ReadTimeoutError):
+            for event in w.stream(custom_objects_api_instance.list_cluster_custom_object, fqdn, version, resource, _request_timeout=60):
+                namespace = event['object']['metadata']['namespace']
+                name = event['object']['metadata']['name']
+                deletion_timestamp = event['object']['metadata']['deletionTimestamp']
+                kind = event['object']['kind']
+                uid = event['object']['metadata']['uid']
+                resource_version = event['object']['metadata']['resourceVersion']
+                try:
+                    finalizers = event['object']['metadata']['finalizers']
+                except KeyError:
+                    finalizers = []
+                api_version = event['object']['apiVersion']
+                event_type = event['type']
+                if event_type in ["ADDED", "MODIFIED"]:
+                    spec = event['object']['spec']
+                    subprocess_env = dict([("_DOLLAR", "$")] + parse(event['object'], prefix="K8S"))
+                    if deletion_timestamp is not None:
+                        if "Side8OperatorDelete" in finalizers:
+                            status = delete_fn(event['object'])
+                            if status:
+                                custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+                            else:
+                                custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
+                        else:
+                            custom_objects_api_instance.delete_namespaced_custom_object(fqdn, version, namespace, resource, name, body=kubernetes.client.V1DeleteOptions())
                     else:
-                        custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"ResourceVerion": resource_version, "finalizers": [list(filter(lambda f:  f != "Side8OperatorDelete", finalizers))]}, "kind": kind, "apiVersion": api_version, "name": name})
-                else:
-                    custom_objects_api_instance.delete_namespaced_custom_object(fqdn, version, namespace, resource, name, body=kubernetes.client.V1DeleteOptions())
-            else:
-                if "Side8OperatorDelete" not in finalizers:
-                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"finalizers": ["Side8OperatorDelete"]}, "kind": kind, "apiVersion": api_version, "name": name})
-                else:
-                    status = apply_fn(event['object'])
-                    custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
+                        if "Side8OperatorDelete" not in finalizers:
+                            custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"metadata": {"finalizers": ["Side8OperatorDelete"]}, "kind": kind, "apiVersion": api_version, "name": name})
+                        else:
+                            status = apply_fn(event['object'])
+                            custom_objects_api_instance.update_namespaced_custom_object(fqdn, version, namespace, resource, name, {"status": status})
 
 def main():
 
