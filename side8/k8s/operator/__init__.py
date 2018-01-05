@@ -6,6 +6,7 @@ import os
 import yaml
 from contextlib import suppress
 import urllib3.exceptions
+import socket
 
 
 class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
@@ -130,7 +131,7 @@ def parse(o, prefix=""):
 def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn):
     w = kubernetes.watch.Watch()
     while True:
-        with suppress(urllib3.exceptions.ReadTimeoutError):
+        with suppress(urllib3.exceptions.ReadTimeoutError, socket.timeout):
             for event in w.stream(custom_objects_api_instance.list_cluster_custom_object, fqdn, version, resource, _request_timeout=60):
                 namespace = event['object']['metadata']['namespace']
                 name = event['object']['metadata']['name']
