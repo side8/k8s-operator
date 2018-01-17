@@ -7,6 +7,7 @@ import yaml
 from contextlib import suppress
 import urllib3.exceptions
 import socket
+import json
 
 
 class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
@@ -207,7 +208,7 @@ def main():
 
     def apply_fn(event_object):
         print("running apply")
-        subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
+        subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S") + [("K8S", json.dumps(event_object))])
         process = subprocess.Popen(
             [args.apply],
             env=dict(list(os.environ.items()) + list(subprocess_env.items())),
@@ -224,7 +225,7 @@ def main():
 
     def delete_fn(event_object):
         print("running delete")
-        subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S"))
+        subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S") + [("K8S", json.dumps(event_object))])
         process = subprocess.Popen(
                 [args.delete],
                 env=dict(list(os.environ.items()) + list(subprocess_env.items())),
