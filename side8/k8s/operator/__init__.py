@@ -167,9 +167,12 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
 
                     import json
                     print("tommy 4 - {}".format(json.dumps(object)))
-                    custom_objects_api_instance.update_namespaced_custom_object(
-                            fqdn, version, namespace, resource, name,
-                            object)
+                    try:
+                        custom_objects_api_instance.update_namespaced_custom_object(
+                                fqdn, version, namespace, resource, name,
+                                object)
+                    except kubernetes.client.rest.ApiException as e:
+                        print("Exception: {}".format(e))
 
 
 def main():
