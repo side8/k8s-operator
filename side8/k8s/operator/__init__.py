@@ -11,6 +11,9 @@ import json
 
 
 class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
+    pass
+
+class IgnoreMe(object):
     def update_namespaced_custom_object(self, group, version, namespace, plural, name, body, **kwargs):
         kwargs['_return_http_data_only'] = True
         if kwargs.get('callback'):
@@ -168,9 +171,12 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                     import json
                     print("tommy 4 - {}".format(json.dumps(object)))
                     try:
-                        custom_objects_api_instance.update_namespaced_custom_object(
+                        custom_objects_api_instance.replace_namespaced_custom_object(
                                 fqdn, version, namespace, resource, name,
                                 object)
+                        # custom_objects_api_instance.update_namespaced_custom_object(
+                        #         fqdn, version, namespace, resource, name,
+                        #         object)
                     except kubernetes.client.rest.ApiException as e:
                         print("Exception: {}".format(e))
 
