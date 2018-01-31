@@ -142,9 +142,12 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                 event_type = event['type']
                 if event_type in ["ADDED", "MODIFIED"]:
                     if object['metadata'].get('deletionTimestamp', None) is not None:
+                        print("tommy 1")
                         if "Side8OperatorDelete" in object['metadata']['finalizers']:
+                            print("tommy 2")
                             object['status'] = delete_fn(event['object'])
                             if not object['status']:
+                                print("tommy 3")
                                 object['metadata']['finalizers'].remove("Side8OperatorDelete")
                         else:
                             custom_objects_api_instance.delete_namespaced_custom_object(
@@ -157,6 +160,8 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                         else:
                             object['metadata']['finalizers'].append("Side8OperatorDelete")
 
+                    import json
+                    print("tommy 4 - {}".format(json.dumps(object)))
                     custom_objects_api_instance.update_namespaced_custom_object(
                             fqdn, version, namespace, resource, name,
                             object)
