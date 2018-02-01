@@ -148,9 +148,14 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                             if not patch_object['status']:
                                 patch_object['metadata'] = {'finalizers': list(filter(lambda f: f != "Side8OperatorDelete", object['metadata']['finalizers']))}
                         else:
-                            custom_objects_api_instance.delete_namespaced_custom_object(
-                                    fqdn, version, namespace, resource,
-                                    name, body=kubernetes.client.V1DeleteOptions())
+                            try:
+                                custom_objects_api_instance.delete_namespaced_custom_object(
+                                        fqdn, version, namespace, resource,
+                                        name, body=kubernetes.client.V1DeleteOptions())
+                            except kubernetes.client.rest.ApiException as e:
+                                if e.status != 404:
+                                    raise
+                                # We're likely seeing an event for a resource that's already been deleted, ignore
                             continue
                     else:
                         if "Side8OperatorDelete" in object['metadata']['finalizers']:
