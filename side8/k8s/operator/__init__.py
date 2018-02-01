@@ -135,6 +135,7 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
     while True:
         with suppress(urllib3.exceptions.ReadTimeoutError, socket.timeout):
             for event in w.stream(custom_objects_api_instance.list_cluster_custom_object, fqdn, version, resource, _request_timeout=60):
+                patch_object = {}
                 object = event['object']
                 namespace = object['metadata']['namespace']
                 name = object['metadata']['name']
@@ -143,9 +144,9 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                 if event_type in ["ADDED", "MODIFIED"]:
                     if object['metadata'].get('deletionTimestamp', None) is not None:
                         if "Side8OperatorDelete" in object['metadata']['finalizers']:
-                            object['status'] = delete_fn(event['object'])
-                            if not object['status']:
-                                object['metadata']['finalizers'].remove("Side8OperatorDelete")
+                            patch_object['status'] = delete_fn(event['object'])
+                            if not patch_object['status']:
+                                patch_object['metadata'] = {'finalizers': list(filter(lambda f: f != "Side8OperatorDelete", object['metadata']['finalizers']))}
                         else:
                             custom_objects_api_instance.delete_namespaced_custom_object(
                                     fqdn, version, namespace, resource,
@@ -153,13 +154,15 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                             continue
                     else:
                         if "Side8OperatorDelete" in object['metadata']['finalizers']:
-                            object['status'] = apply_fn(event['object'])
+                            patch_object['status'] = apply_fn(event['object'])
                         else:
-                            object['metadata']['finalizers'].append("Side8OperatorDelete")
+                            patch_object.setdefault('metadata', {})
+                            patch_object['metadata'].setdefault('finalizers', [])
+                            patch_object['metadata']['finalizers'].append("Side8OperatorDelete")
 
                     custom_objects_api_instance.update_namespaced_custom_object(
                             fqdn, version, namespace, resource, name,
-                            object)
+                            patch_object)
 
 
 def main():
