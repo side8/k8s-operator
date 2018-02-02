@@ -154,12 +154,21 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                                         name, body=kubernetes.client.V1DeleteOptions())
                             except kubernetes.client.rest.ApiException as e:
                                 if e.status != 404:
+                                    # We're likely seeing an event for a resource that's already been deleted, ignore
                                     raise
-                                # We're likely seeing an event for a resource that's already been deleted, ignore
+                            except subprocess.CalledProcessError as e:
+                                # TODO log k8s error event
+                                print("delete exited with {}".format(e.returncode))
+                                continue
                             continue
                     else:
                         if "Side8OperatorDelete" in object['metadata']['finalizers']:
-                            patch_object['status'] = apply_fn(event['object'])
+                            try:
+                                patch_object['status'] = apply_fn(event['object'])
+                            except subprocess.CalledProcessError as e:
+                                # TODO log k8s error event
+                                print("apply exited with {}".format(e.returncode))
+                                continue
                         else:
                             patch_object.setdefault('metadata', {})
                             patch_object['metadata'].setdefault('finalizers', [])
@@ -213,7 +222,8 @@ def main():
         print("out: {}".format(out))
         print("error:")
         print(err.decode('utf-8'))
-        assert process.returncode == 0
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, args.apply)
         status = yaml.load(out)
         return status
 
@@ -231,8 +241,8 @@ def main():
         print("out: {}".format(out))
         print("error:")
         print(err.decode('utf-8'))
-
-        assert process.returncode == 0
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, args.delete)
         status = yaml.load(out)
         return status
 
