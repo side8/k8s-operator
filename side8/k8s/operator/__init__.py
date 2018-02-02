@@ -8,6 +8,7 @@ from contextlib import suppress
 import urllib3.exceptions
 import socket
 import json
+import functools
 
 
 class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
@@ -158,7 +159,7 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                                     raise
                             except subprocess.CalledProcessError as e:
                                 # TODO log k8s error event
-                                print("delete exited with {}".format(e.returncode))
+                                print("{} exited with {}".format(e.cmd, e.returncode))
                                 continue
                             continue
                     else:
@@ -167,7 +168,7 @@ def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, 
                                 patch_object['status'] = apply_fn(event['object'])
                             except subprocess.CalledProcessError as e:
                                 # TODO log k8s error event
-                                print("apply exited with {}".format(e.returncode))
+                                print("{} exited with {}".format(e.cmd, e.returncode))
                                 continue
                         else:
                             patch_object.setdefault('metadata', {})
@@ -209,11 +210,11 @@ def main():
     version = args.version
     resource = args.resource
 
-    def apply_fn(event_object):
-        print("running apply")
+    def callout_fn(callback, event_object):
+        print("running {}".format(callback))
         subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S") + [("K8S", json.dumps(event_object))])
         process = subprocess.Popen(
-            [args.apply],
+            [callback],
             env=dict(list(os.environ.items()) + list(subprocess_env.items())),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -223,28 +224,12 @@ def main():
         print("error:")
         print(err.decode('utf-8'))
         if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, args.apply)
+            raise subprocess.CalledProcessError(process.returncode, callback)
         status = yaml.load(out)
         return status
 
-    def delete_fn(event_object):
-        print("running delete")
-        subprocess_env = dict([("_DOLLAR", "$")] + parse(event_object, prefix="K8S") + [("K8S", json.dumps(event_object))])
-        process = subprocess.Popen(
-                [args.delete],
-                env=dict(list(os.environ.items()) + list(subprocess_env.items())),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=1)
-        out, err = process.communicate()
-
-        print("out: {}".format(out))
-        print("error:")
-        print(err.decode('utf-8'))
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, args.delete)
-        status = yaml.load(out)
-        return status
+    apply_fn = functools.partial(callout_fn, args.apply)
+    delete_fn = functools.partial(callout_fn, args.delete)
 
     wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn)
 
