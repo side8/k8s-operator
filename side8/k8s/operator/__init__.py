@@ -1,4 +1,5 @@
 import kubernetes
+from .utils import parse
 import sys
 from six import iteritems
 import subprocess
@@ -105,30 +106,6 @@ class CustomObjectsApiWithUpdate(kubernetes.client.CustomObjectsApi):
                                         _preload_content=params.get('_preload_content', True),
                                         _request_timeout=params.get('_request_timeout'),
                                         collection_formats=collection_formats)
-
-
-def parse(o, prefix=""):
-    def flatten(lis):
-        new_lis = []
-        for item in lis:
-            if isinstance(item, list):
-                new_lis.extend(flatten(item))
-            else:
-                new_lis.append(item)
-        return new_lis
-
-    try:
-        return {
-            "str": lambda: (prefix, o),
-            "int": lambda: parse(str(o), prefix=prefix),
-            "float": lambda: parse(str(o), prefix=prefix),
-            "bool": lambda: parse(1 if o else 0, prefix=prefix),
-            "NoneType": lambda: parse("", prefix=prefix),
-            "list": lambda: flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in enumerate(o)]),
-            "dict": lambda: flatten([parse(io, "{}{}{}".format(prefix, "_" if prefix else "", ik).upper()) for ik, io in o.items()]),
-        }[type(o).__name__]()
-    except KeyError:
-        raise
 
 
 def wait_events(custom_objects_api_instance, fqdn, version, resource, apply_fn, delete_fn):
