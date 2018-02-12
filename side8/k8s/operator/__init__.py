@@ -19,7 +19,11 @@ def handle_resource_change(custom_objects_api_instance, apply_fn, delete_fn, api
     patch_object = {}
     if resource_object['metadata'].get('deletionTimestamp', None) is not None:
         if "Side8OperatorDelete" in resource_object['metadata']['finalizers']:
-            patch_object['status'] = delete_fn(resource_object)
+            try:
+                patch_object['status'] = delete_fn(resource_object)
+            except subprocess.CalledProcessError as e:
+                print("{} exited with {}".format(e.cmd, e.returncode))
+                return
             if not patch_object['status']:
                 patch_object['metadata'] = {
                         'finalizers': list(filter(lambda f: f != "Side8OperatorDelete", resource_object['metadata']['finalizers']))}
