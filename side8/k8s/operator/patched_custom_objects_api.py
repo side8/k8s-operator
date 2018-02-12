@@ -5,7 +5,7 @@ from six import iteritems
 class CustomObjectsApi(kubernetes.client.CustomObjectsApi):
     def update_namespaced_custom_object(self, group, version, namespace, plural, name, body, **kwargs):
         kwargs['_return_http_data_only'] = True
-        if kwargs.get('callback'):
+        if kwargs.get('async'):
             return self.update_namespaced_custom_object_with_http_info(group, version, namespace, plural, name, body, **kwargs)
         else:
             (data) = self.update_namespaced_custom_object_with_http_info(group, version, namespace, plural, name, body, **kwargs)
@@ -13,7 +13,7 @@ class CustomObjectsApi(kubernetes.client.CustomObjectsApi):
 
     def update_namespaced_custom_object_with_http_info(self, group, version, namespace, plural, name, body, **kwargs):
         all_params = ['group', 'version', 'namespace', 'plural', 'name', 'body']
-        all_params.append('callback')
+        all_params.append('async')
         all_params.append('_return_http_data_only')
         all_params.append('_preload_content')
         all_params.append('_request_timeout')
@@ -91,7 +91,7 @@ class CustomObjectsApi(kubernetes.client.CustomObjectsApi):
                                         files=local_var_files,
                                         response_type='object',
                                         auth_settings=auth_settings,
-                                        callback=params.get('callback'),
+                                        async=params.get('async'),
                                         _return_http_data_only=params.get('_return_http_data_only'),
                                         _preload_content=params.get('_preload_content', True),
                                         _request_timeout=params.get('_request_timeout'),
