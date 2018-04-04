@@ -1,0 +1,7 @@
+#!/bin/bash
+
+for BASE in jessie alpine3.7 ; do
+    docker build --build-arg BASE=${BASE} -f "${DOCKERFILE_PATH}" -t "${IMAGE_NAME}-${BASE}" .
+done
+
+docker tag "${IMAGE_NAME}-jessie" "${IMAGE_NAME}"

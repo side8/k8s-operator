@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for BASE in jessie alpine3.7 ; do
+    docker push "${IMAGE_NAME}-${BASE}"
+done

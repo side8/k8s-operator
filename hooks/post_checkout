@@ -1,0 +1,6 @@
+#!/bin/bash
+
+for BASE in jessie alpine3.7 ; do
+    docker pull "${IMAGE_NAME}-${BASE}"
+done && \
+docker tag "${IMAGE_NAME}-jessie" "${IMAGE_NAME}" || echo "nothing pulled 🤷"
